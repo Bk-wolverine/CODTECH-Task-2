@@ -5,6 +5,8 @@ DOMAIN:CYBER SECURITY&ETHICAL HACKING
 DURATION:JULY 2024 TO AUGUST 2024
 MENTOR: Muzammil Ahmed
 
+
+
 Overview of the Vulnerability Scanning Tool Project
 
 This Python-based vulnerability scanning tool is designed to identify common security vulnerabilities in a network or website. The tool includes features such as scanning for open ports, checking for outdated software versions, identifying common misconfigurations, verifying SSL/TLS certificate details, brute forcing directories, testing for basic SQL injection vulnerabilities, and checking HTTP headers for security configurations.
