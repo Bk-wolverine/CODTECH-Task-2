@@ -1,0 +1,147 @@
+import nmap
+import requests
+import socket
+import re
+import sys
+import ssl
+from datetime import datetime
+from urllib.parse import urlparse
+from scapy.all import *
+
+# Function to scan for open ports
+def scan_open_ports(target):
+    nm = nmap.PortScanner()
+    nm.scan(target, '1-1024')  # Scan ports 1-1024
+    open_ports = []
+    for host in nm.all_hosts():
+        for proto in nm[host].all_protocols():
+            lport = nm[host][proto].keys()
+            for port in lport:
+                if nm[host][proto][port]['state'] == 'open':
+                    open_ports.append(port)
+    return open_ports
+
+# Function to check for outdated software versions
+def check_outdated_software(url):
+    response = requests.get(url)
+    if response.status_code == 200:
+        server_header = response.headers.get('Server')
+        if server_header:
+            print(f"Server Header: {server_header}")
+            # Add your own logic here to check for known outdated versions
+        else:
+            print("No Server header found.")
+    else:
+        print("Failed to connect to the URL")
+
+# Function to scan for common misconfigurations
+def scan_misconfigurations(target):
+    misconfigurations = []
+    # Example: Check if target is responding to ICMP echo requests (ping)
+    try:
+        response = sr1(IP(dst=target)/ICMP(), timeout=2, verbose=0)
+        if response is None:
+            misconfigurations.append("ICMP echo requests not responded")
+        else:
+            misconfigurations.append("ICMP echo requests responded")
+    except Exception as e:
+        print(f"Error: {e}")
+    return misconfigurations
+
+# Function to check SSL/TLS certificate
+def check_ssl_certificate(target):
+    try:
+        context = ssl.create_default_context()
+        with socket.create_connection((target, 443)) as sock:
+            with context.wrap_socket(sock, server_hostname=target) as ssock:
+                cert = ssock.getpeercert()
+                expiry_date = datetime.strptime(cert['notAfter'], '%b %d %H:%M:%S %Y %Z')
+                days_to_expiry = (expiry_date - datetime.now()).days
+                if days_to_expiry < 30:
+                    print(f"SSL/TLS certificate is expiring in {days_to_expiry} days")
+                else:
+                    print(f"SSL/TLS certificate is valid for {days_to_expiry} more days")
+    except Exception as e:
+        print(f"SSL/TLS check failed: {e}")
+
+# Function to brute force directories
+def brute_force_directories(target, wordlist):
+    found_directories = []
+    for word in wordlist:
+        url = f"http://{target}/{word}"
+        response = requests.get(url)
+        if response.status_code == 200:
+            found_directories.append(url)
+    return found_directories
+
+# Function to check for basic SQL injection vulnerability
+def test_sql_injection(target):
+    sqli_payload = "' OR '1'='1"
+    url = f"{target}?id={sqli_payload}"
+    response = requests.get(url)
+    if "syntax" in response.text or "mysql" in response.text:
+        return True
+    return False
+
+# Function to check HTTP headers for security
+def check_security_headers(url):
+    response = requests.get(url)
+    security_headers = [
+        'Content-Security-Policy', 
+        'X-Frame-Options', 
+        'X-XSS-Protection', 
+        'Strict-Transport-Security', 
+        'X-Content-Type-Options'
+    ]
+    headers_found = {header: response.headers.get(header) for header in security_headers}
+    return headers_found
+
+if __name__ == "__main__":
+    if len(sys.argv) != 2:
+        print("Usage: python vuln_scanner.py <target>")
+        sys.exit(1)
+
+    target = sys.argv[1]
+    parsed_url = urlparse(target)
+    hostname = parsed_url.hostname or target
+    url = target if parsed_url.scheme else f"http://{target}"
+
+    print(f"Scanning for open ports on {hostname}...")
+    open_ports = scan_open_ports(hostname)
+    if open_ports:
+        print(f"Open Ports: {open_ports}")
+    else:
+        print("No open ports found.")
+
+    print(f"\nChecking for outdated software on {url}...")
+    check_outdated_software(url)
+
+    print(f"\nScanning for common misconfigurations on {hostname}...")
+    misconfigurations = scan_misconfigurations(hostname)
+    if misconfigurations:
+        print(f"Misconfigurations found: {misconfigurations}")
+    else:
+        print("No misconfigurations found.")
+
+    print(f"\nChecking SSL/TLS certificate for {hostname}...")
+    check_ssl_certificate(hostname)
+
+    print(f"\nBrute forcing directories on {hostname}...")
+    wordlist = ["admin", "login", "test", "backup"]  # You can expand this list
+    found_dirs = brute_force_directories(hostname, wordlist)
+    if found_dirs:
+        print(f"Found directories: {found_dirs}")
+    else:
+        print("No directories found.")
+
+    print(f"\nTesting for SQL injection on {url}...")
+    if test_sql_injection(url):
+        print("SQL injection vulnerability found!")
+    else:
+        print("No SQL injection vulnerability found.")
+
+    print(f"\nChecking security headers for {url}...")
+    security_headers = check_security_headers(url)
+    for header, value in security_headers.items():
+        print(f"{header}: {value}")
+#need to enter an URL or IP address!!
